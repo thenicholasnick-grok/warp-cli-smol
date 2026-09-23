@@ -2,7 +2,7 @@
 
 Official Debian `cloudflare-warp` now hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 
-![Cloudflare: working on a headless package](docs/cloudflare-headless-quote.png)
+![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
 
 Cloudflare Team, on that thread:
 
