@@ -35,7 +35,7 @@ WORK_DIR="${ROOT}/work"
 EXTRACT_DIR="${WORK_DIR}/extract"
 
 log() {
-  printf '%s\n' "$*"
+  printf '%s\n' "$*" >&2
 }
 
 die() {
