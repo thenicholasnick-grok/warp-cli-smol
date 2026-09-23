@@ -2,7 +2,7 @@
 
 Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 
-Cloudflare, on that thread:
+Cloudflare Team (ncano), 2026-05-23:
 
 > We are working on a headless package, you will also soon be able to run it in containers as well.
 
@@ -10,7 +10,9 @@ So in the meantime this works.
 
 But this is the internet — get your agent to build the same for you…
 
-![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
+![Cloudflare Team member ncano, 2026-05-23: "We are working on a headless package, you will also soon be able to run it in containers as well."](docs/cloudflare-headless-quote.jpg)
+
+*ncano, Cloudflare Team, 2026-05-23 — [community thread](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991)*
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
@@ -18,7 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/
 
 **Updates are automatic:** each CI run live-fetches Cloudflare's current Debian trixie `Packages` index (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` release whose asset name never changes — repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
 
-Unofficial. Debian trixie only — not an official Cloudflare package.
+Unofficial. Debian trixie amd64 only — not an official Cloudflare package.
 
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
