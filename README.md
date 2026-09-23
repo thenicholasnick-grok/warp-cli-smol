@@ -1,8 +1,20 @@
 # warp-cli-smol
 
-Unofficial **headless** rebuild of the Cloudflare WARP Linux client.
+Official Debian `cloudflare-warp` now hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 
-Each CI run re-fetches the current **Debian trixie** `cloudflare-warp` amd64 package from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/trixie/main/binary-amd64/Packages`), strips the GUI/taskbar bits, and publishes a rolling GitHub Release guests can `curl` without logging in.
+Cloudflare Team, on that thread:
+
+> We are working on a headless package, you will also soon be able to run it in containers as well.
+
+So in the meantime this works.
+
+But this is the internet — get your agent to build the same for you…
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
+```
+
+Unofficial **headless** rebuild of the Cloudflare WARP Linux client. Each CI run re-fetches the current **Debian trixie** `cloudflare-warp` amd64 package from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/trixie/main/binary-amd64/Packages`), strips the GUI/taskbar bits, and publishes a rolling GitHub Release guests can `curl` without logging in.
 
 The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It drops desktop-file, AppIndicator, and WebKit dependencies, plus the taskbar/Flutter tree.
 
@@ -12,13 +24,7 @@ This is not an official Cloudflare package.
 
 ## Install on a guest VM
 
-One command. No GitHub login.
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
-```
-
-That downloads the stable release asset and `dpkg -i`s it:
+That one-liner is the install. No GitHub login. It downloads the stable release asset and `dpkg -i`s it:
 
 ```text
 https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb
