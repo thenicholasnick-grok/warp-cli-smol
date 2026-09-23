@@ -40,7 +40,9 @@ verify_release_deb() {
   local name line
 
   name="$(basename "$deb")"
+  [[ -f "$deb" ]] || die "package file is missing"
   [[ -s "$deb" ]] || die "downloaded package is empty"
+  [[ -f "$sums" ]] || die "checksum file is missing"
   [[ -s "$sums" ]] || die "downloaded checksum file is empty"
 
   line="$(awk -v name="$name" '

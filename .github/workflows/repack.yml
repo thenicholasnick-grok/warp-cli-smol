@@ -48,8 +48,14 @@ jobs:
           echo "Published checksums:"
           cat SHA256SUMS
           [[ -s SHA256SUMS ]] || { echo "SHA256SUMS is empty" >&2; exit 1; }
-          grep -qE '^[0-9a-f]{64}  cloudflare-warp-headless_amd64\.deb$' SHA256SUMS \
-            || { echo "SHA256SUMS missing stable asset" >&2; exit 1; }
+          awk -v name="cloudflare-warp-headless_amd64.deb" '
+            $1 ~ /^[0-9a-f]{64}$/ && $NF == name { found = 1 }
+            END { exit !found }
+          ' SHA256SUMS || { echo "SHA256SUMS missing stable asset" >&2; exit 1; }
+          awk -v name="$(basename "${versioned[0]}")" '
+            $1 ~ /^[0-9a-f]{64}$/ && $NF == name { found = 1 }
+            END { exit !found }
+          ' SHA256SUMS || { echo "SHA256SUMS missing versioned asset" >&2; exit 1; }
 
           if gh release view latest >/dev/null 2>&1; then
             gh release delete latest --yes --cleanup-tag
