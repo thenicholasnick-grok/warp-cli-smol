@@ -20,7 +20,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y dpkg-dev binutils
 
-      - name: Repack cloudflare-warp as headless
+      - name: Repack Debian trixie cloudflare-warp as headless
         run: bash ./repack.sh
 
       - name: Upload headless .deb artifact

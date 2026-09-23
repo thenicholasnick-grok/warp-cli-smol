@@ -2,13 +2,15 @@
 
 Unofficial **headless** rebuild of the Cloudflare WARP Linux client.
 
-Each CI run re-fetches the current `cloudflare-warp` amd64 package from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`trixie` / `binary-amd64`), strips the GUI/taskbar bits, and emits:
+Each CI run re-fetches the current **Debian trixie** `cloudflare-warp` amd64 package from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/trixie/main/binary-amd64/Packages`), strips the GUI/taskbar bits, and emits:
 
 ```text
 cloudflare-warp-headless_<upstream-version>_amd64.deb
 ```
 
 The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It drops desktop-file, AppIndicator, and WebKit dependencies, plus the taskbar/Flutter tree.
+
+This is the Debian trixie package only (`pool/trixie/...`). Cloudflare also publishes bookworm, jammy, noble, and other suites; those are different `.deb`s (different Depends, including t64 vs non-t64 names) and are not used.
 
 This is not an official Cloudflare package.
 
@@ -40,7 +42,7 @@ Do not add Cloudflare's APT repo and `apt-get install cloudflare-warp` on the sa
 
 - `ubuntu-latest`, on `workflow_dispatch` and weekly Monday 06:00 UTC.
 - Installs `dpkg-dev` and `binutils`.
-- Runs `./repack.sh`, which fails the job if any proof fails:
+- Runs `./repack.sh` against the Debian trixie index, which fails the job if Filename is not under `pool/trixie/` or if any proof fails:
   1. New control has no `webkit` and no `appindicator`.
   2. `readelf -d` on `bin/warp-cli` `NEEDED` is only `libc`, `libm`, `libgcc_s`.
   3. `readelf -d` on `bin/warp-svc` does not show webkit or gtk.
