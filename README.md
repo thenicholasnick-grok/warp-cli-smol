@@ -1,24 +1,22 @@
 # warp-cli-smol
 
-Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
-
-Cloudflare, on that thread:
-
-> We are working on a headless package, you will also soon be able to run it in containers as well.
-
-So in the meantime this works.
-
-But this is the internet — get your agent to build the same for you…
-
-![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
+Headless Cloudflare WARP for Debian / guest VMs — `warp-cli` + `warp-svc`, no AppIndicator, no WebKit, no desktop.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
 ```
 
+![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
+
 **Updates are automatic:** each CI run live-fetches Cloudflare's current Debian trixie `Packages` index (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` release whose asset name never changes — repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
 
-Unofficial. Debian trixie only — not an official Cloudflare package.
+Unofficial. Debian trixie amd64 only — not an official Cloudflare package.
+
+Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
+
+Cloudflare Team (ncano), 2026-05-23:
+
+![ncano, Cloudflare Team, on a headless WARP package](docs/cloudflare-team-headless-quote.jpg)
 
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
