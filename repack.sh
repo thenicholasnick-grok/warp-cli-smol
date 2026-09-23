@@ -11,10 +11,14 @@ PACKAGES_URL="${UPSTREAM_BASE}/dists/${UPSTREAM_SUITE}/main/binary-amd64/Package
 UPSTREAM_PACKAGE="cloudflare-warp"
 OUTPUT_PACKAGE="cloudflare-warp-headless"
 
-DROP_DEPS=(
+# Exact names, or package-name prefixes (ABI/version suffixes may change).
+# Matching is on the package name only — never on the version constraint.
+DROP_DEPS_EXACT=(
   desktop-file-utils
-  libayatana-appindicator3-1
-  libwebkit2gtk-4.1-0
+)
+DROP_DEPS_PREFIX=(
+  libwebkit2gtk
+  libayatana-appindicator
 )
 
 DELETE_PATHS=(
@@ -68,8 +72,13 @@ dep_name() {
 should_drop_dep() {
   local name="$1"
   local drop
-  for drop in "${DROP_DEPS[@]}"; do
+  for drop in "${DROP_DEPS_EXACT[@]}"; do
     if [[ "$name" == "$drop" ]]; then
+      return 0
+    fi
+  done
+  for drop in "${DROP_DEPS_PREFIX[@]}"; do
+    if [[ "$name" == "${drop}"* ]]; then
       return 0
     fi
   done
@@ -89,7 +98,7 @@ filter_depends() {
     [[ -z "$item" ]] && continue
     name="$(dep_name "$item")"
     if should_drop_dep "$name"; then
-      log "Dropping dependency: ${item}"
+      log "Dropping Depends item: ${item} (package name: ${name})"
       continue
     fi
     kept+=("$item")

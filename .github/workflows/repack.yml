@@ -44,6 +44,19 @@ jobs:
           fi
           cp -f "${versioned[0]}" cloudflare-warp-headless_amd64.deb
 
+          sha256sum cloudflare-warp-headless_amd64.deb "${versioned[0]}" > SHA256SUMS
+          echo "Published checksums:"
+          cat SHA256SUMS
+          [[ -s SHA256SUMS ]] || { echo "SHA256SUMS is empty" >&2; exit 1; }
+          awk -v name="cloudflare-warp-headless_amd64.deb" '
+            $1 ~ /^[0-9a-f]{64}$/ && $NF == name { found = 1 }
+            END { exit !found }
+          ' SHA256SUMS || { echo "SHA256SUMS missing stable asset" >&2; exit 1; }
+          awk -v name="$(basename "${versioned[0]}")" '
+            $1 ~ /^[0-9a-f]{64}$/ && $NF == name { found = 1 }
+            END { exit !found }
+          ' SHA256SUMS || { echo "SHA256SUMS missing versioned asset" >&2; exit 1; }
+
           if gh release view latest >/dev/null 2>&1; then
             gh release delete latest --yes --cleanup-tag
           fi
@@ -55,6 +68,9 @@ jobs:
           Stable guest-VM asset (filename never changes):
           https://github.com/${{ github.repository }}/releases/latest/download/cloudflare-warp-headless_amd64.deb
 
+          Checksums (SHA256SUMS, same release):
+          https://github.com/${{ github.repository }}/releases/latest/download/SHA256SUMS
+
           This run built $(basename "${versioned[0]}").
 
           Do not apt-get install cloudflare-warp afterwards.
@@ -64,4 +80,5 @@ jobs:
             --title "cloudflare-warp-headless (rolling)" \
             --notes-file "$notes_file" \
             cloudflare-warp-headless_amd64.deb \
-            "${versioned[0]}"
+            "${versioned[0]}" \
+            SHA256SUMS
