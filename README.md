@@ -16,13 +16,7 @@ Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which d
 
 Cloudflare Team (ncano), 2026-05-23:
 
-> We are working on a headless package, you will also soon be able to run it in containers as well.
-
-So in the meantime this works.
-
-![Cloudflare Team member ncano, 2026-05-23: "We are working on a headless package, you will also soon be able to run it in containers as well."](docs/cloudflare-team-headless-quote.jpg)
-
-*ncano, Cloudflare Team, 2026-05-23 — [community thread](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991)*
+![ncano, Cloudflare Team, on a headless WARP package](docs/cloudflare-team-headless-quote.jpg)
 
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
