@@ -203,7 +203,11 @@ print_banner() {
 }
 
 needed_libs() {
-  readelf -d "$1" | sed -n 's/.*NEEDED[[:space:]]*Shared library:[[:space:]]*\[\(.*\)\]/\1/p'
+  readelf -d "$1" | awk '/\(NEEDED\)/ {
+    gsub(/.*\[/, "")
+    gsub(/\].*/, "")
+    print
+  }'
 }
 
 prove_control() {
