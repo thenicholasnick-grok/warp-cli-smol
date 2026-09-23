@@ -2,11 +2,7 @@
 
 Unofficial **headless** rebuild of the Cloudflare WARP Linux client.
 
-Each CI run re-fetches the current **Debian trixie** `cloudflare-warp` amd64 package from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/trixie/main/binary-amd64/Packages`), strips the GUI/taskbar bits, and emits:
-
-```text
-cloudflare-warp-headless_<upstream-version>_amd64.deb
-```
+Each CI run re-fetches the current **Debian trixie** `cloudflare-warp` amd64 package from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/trixie/main/binary-amd64/Packages`), strips the GUI/taskbar bits, and publishes a rolling GitHub Release guests can `curl` without logging in.
 
 The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It drops desktop-file, AppIndicator, and WebKit dependencies, plus the taskbar/Flutter tree.
 
@@ -14,19 +10,26 @@ This is the Debian trixie package only (`pool/trixie/...`). Cloudflare also publ
 
 This is not an official Cloudflare package.
 
-## Download the Actions artifact and install it
+## Install on a guest VM
 
-`.deb` files are **CI artifacts only**. They are never committed to this repo and are never attached to GitHub Releases.
-
-1. Open the [Actions](../../actions) tab.
-2. Select the **Repack headless WARP** workflow.
-3. Open the latest successful run (manual `workflow_dispatch`, or the Monday 06:00 UTC schedule).
-4. Download the `cloudflare-warp-headless` artifact and unzip it.
-5. Install that file only:
+One command. No GitHub login.
 
 ```bash
-sudo dpkg -i cloudflare-warp-headless_*_amd64.deb
-sudo apt-get install -f   # only if dpkg reports missing Depends
+curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
+```
+
+That downloads the stable release asset and `dpkg -i`s it:
+
+```text
+https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb
+```
+
+Direct one-liner without the script:
+
+```bash
+curl -fsSL -o /tmp/cloudflare-warp-headless_amd64.deb \
+  https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb \
+  && sudo dpkg -i /tmp/cloudflare-warp-headless_amd64.deb
 ```
 
 **Do not** install the official package afterwards:
@@ -38,6 +41,8 @@ sudo apt-get install cloudflare-warp
 
 Do not add Cloudflare's APT repo and `apt-get install cloudflare-warp` on the same machine. That replaces or conflicts with the headless binaries (`/bin/warp-cli`, `/bin/warp-svc`).
 
+`.deb` files are never committed to this repo. The rolling `latest` release is rebuilt by CI after proofs pass. Actions artifacts (14-day retention) remain a secondary copy.
+
 ## What CI does
 
 - `ubuntu-latest`, on `workflow_dispatch` and weekly Monday 06:00 UTC.
@@ -46,9 +51,12 @@ Do not add Cloudflare's APT repo and `apt-get install cloudflare-warp` on the sa
   1. New control has no `webkit` and no `appindicator`.
   2. `readelf -d` on `bin/warp-cli` `NEEDED` is only `libc`, `libm`, `libgcc_s`.
   3. `readelf -d` on `bin/warp-svc` does not show webkit or gtk.
-- Uploads the `.deb` with `actions/upload-artifact` (`retention-days: 14`).
+- Uploads the versioned `.deb` with `actions/upload-artifact` (`retention-days: 14`).
+- Recreates the rolling GitHub Release tagged `latest` and uploads:
+  - `cloudflare-warp-headless_amd64.deb` (stable name; this is the guest-VM URL)
+  - `cloudflare-warp-headless_<upstream-version>_amd64.deb` (same bits, versioned name)
 
-There is no release-create step.
+Proofs must pass before either publish step runs.
 
 ## Local rebuild
 
