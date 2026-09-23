@@ -21,18 +21,21 @@ Cloudflare Team (ncano), 2026-05-23:
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
 
-No GitHub login. The one-liner downloads the stable release asset and `dpkg -i`s it:
+No GitHub login. The one-liner downloads the stable release asset, checks it against `SHA256SUMS` from the same release, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match.
 
 ```text
 https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb
+https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/SHA256SUMS
 ```
 
-Direct one-liner without the script:
+Direct one-liner without the script (still verify before `dpkg -i`):
 
 ```bash
-curl -fsSL -o /tmp/cloudflare-warp-headless_amd64.deb \
-  https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb \
-  && sudo dpkg -i /tmp/cloudflare-warp-headless_amd64.deb
+cd /tmp && \
+curl -fsSL -O https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb && \
+curl -fsSL -O https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/SHA256SUMS && \
+sha256sum -c --ignore-missing --strict SHA256SUMS && \
+sudo dpkg -i cloudflare-warp-headless_amd64.deb
 ```
 
 **Do not** install the official package afterwards:
@@ -63,6 +66,7 @@ The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It dro
 - Recreates the rolling GitHub Release tagged `latest` and uploads:
   - `cloudflare-warp-headless_amd64.deb` (stable name; this is the guest-VM URL)
   - `cloudflare-warp-headless_<upstream-version>_amd64.deb` (same bits, versioned name)
+  - `SHA256SUMS` (sha256 of both `.deb` names; `install.sh` requires a match before `dpkg -i`)
 
 Proofs must pass before either publish step runs.
 
