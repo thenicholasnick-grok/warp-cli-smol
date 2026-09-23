@@ -1,0 +1,6 @@
+# Never commit Debian packages
+*.deb
+
+# Repack work and download trees
+/work/
+/downloads/
