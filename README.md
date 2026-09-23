@@ -2,15 +2,13 @@
 
 Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 
-Cloudflare, on that thread:
+![ncano, Cloudflare Team, 2026-05-23: we are working on a headless package](docs/cloudflare-headless-quote.jpg)
 
-> We are working on a headless package, you will also soon be able to run it in containers as well.
+*ncano, Cloudflare Team, **2026-05-23** — [community thread](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991): “We are working on a headless package…”*
 
 So in the meantime this works.
 
 But this is the internet — get your agent to build the same for you…
-
-![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
