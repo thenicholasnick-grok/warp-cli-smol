@@ -6,9 +6,11 @@ Headless Cloudflare WARP for Debian / guest VMs — `warp-cli` + `warp-svc`, no 
 curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
 ```
 
+Install assets are served from `raw.githubusercontent.com` (dual-stack). GitHub Release downloads go through `github.com`, which has no AAAA — IPv6-only guests get `Network is unreachable`.
+
 ![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
 
-**Updates are automatic:** each CI run live-fetches Cloudflare's current Debian trixie `Packages` index (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` release whose asset name never changes — repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
+**Updates are automatic:** each CI run live-fetches Cloudflare's current Debian trixie `Packages` index (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` GitHub Release **and** force-pushes the same stable-name `.deb` + `SHA256SUMS` to the orphan `install-dist` branch (single commit, replaced each run). Repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
 
 Unofficial. Debian trixie amd64 only — not an official Cloudflare package.
 
@@ -21,19 +23,32 @@ Cloudflare Team (ncano), 2026-05-23:
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
 
-No GitHub login. The one-liner downloads the stable release asset, checks it against `SHA256SUMS` from the same release, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match. The guest needs outbound HTTPS to `github.com` for those release assets; fetching `install.sh` from `raw.githubusercontent.com` is not enough.
+No GitHub login. The one-liner downloads the stable asset from `install-dist`, checks it against `SHA256SUMS` from the same branch, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match. The guest needs outbound HTTPS to `raw.githubusercontent.com` (not `github.com`).
 
 ```text
-https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb
-https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/SHA256SUMS
+https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_amd64.deb
+https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS
+```
+
+Browsers on IPv4 can also use the rolling GitHub Release (`releases/latest`).
+
+Prove on an IPv6-only guest:
+
+```bash
+curl -6 -fsSI https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_amd64.deb
+curl -6 -fsSI https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS
+# expected: HTTP 200
+
+curl -6 -fsSI https://github.com/
+# expected: fail (no AAAA / Network is unreachable)
 ```
 
 Direct one-liner without the script (still verify before `dpkg -i`):
 
 ```bash
 cd /tmp && \
-curl -fsSL -O https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb && \
-curl -fsSL -O https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/SHA256SUMS && \
+curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_amd64.deb && \
+curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS && \
 sha256sum -c --ignore-missing --strict SHA256SUMS && \
 sudo dpkg -i cloudflare-warp-headless_amd64.deb
 ```
@@ -49,7 +64,7 @@ Do not add Cloudflare's APT repo and `apt-get install cloudflare-warp` on the sa
 
 The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It drops desktop-file, AppIndicator, and WebKit dependencies, plus the taskbar/Flutter tree.
 
-`.deb` files are never committed to this repo. Cloudflare also publishes bookworm, jammy, noble, and other suites; those are different `.deb`s and are not used.
+`.deb` files are never committed to `main`. The rolling stable `.deb` lives only on `install-dist` (force-replaced each successful CI run). Cloudflare also publishes bookworm, jammy, noble, and other suites; those are different `.deb`s and are not used.
 
 </details>
 
@@ -64,9 +79,10 @@ The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It dro
   3. `readelf -d` on `bin/warp-svc` does not show webkit or gtk.
 - Uploads the versioned `.deb` with `actions/upload-artifact` (`retention-days: 14`).
 - Recreates the rolling GitHub Release tagged `latest` and uploads:
-  - `cloudflare-warp-headless_amd64.deb` (stable name; this is the guest-VM URL)
+  - `cloudflare-warp-headless_amd64.deb` (stable name)
   - `cloudflare-warp-headless_<upstream-version>_amd64.deb` (same bits, versioned name)
-  - `SHA256SUMS` (sha256 of both `.deb` names; `install.sh` requires a match before `dpkg -i`)
+  - `SHA256SUMS` (sha256 of both `.deb` names; `install.sh` requires the stable-name line before `dpkg -i`)
+- Force-pushes an orphan `install-dist` branch with only the stable `.deb` and the same `SHA256SUMS` so IPv6-only guests can fetch via `raw.githubusercontent.com` without hitting `github.com:443`.
 
 Proofs must pass before either publish step runs.
 

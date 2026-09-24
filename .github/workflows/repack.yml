@@ -6,7 +6,7 @@ on:
     - cron: "0 6 * * 1" # Monday 06:00 UTC
 
 permissions:
-  contents: write # gh release create/delete + asset upload
+  contents: write # gh release create/delete + force-push install-dist
 
 jobs:
   repack:
@@ -65,10 +65,12 @@ jobs:
           cat >"$notes_file" <<EOF
           Unofficial headless rebuild of the Debian trixie cloudflare-warp package.
 
-          Stable guest-VM asset (filename never changes):
-          https://github.com/${{ github.repository }}/releases/latest/download/cloudflare-warp-headless_amd64.deb
+          IPv6-only guests (install.sh default — raw.githubusercontent.com has AAAA):
+          https://raw.githubusercontent.com/${{ github.repository }}/install-dist/cloudflare-warp-headless_amd64.deb
+          https://raw.githubusercontent.com/${{ github.repository }}/install-dist/SHA256SUMS
 
-          Checksums (SHA256SUMS, same release):
+          GitHub Release (browsers / IPv4; github.com has no AAAA):
+          https://github.com/${{ github.repository }}/releases/latest/download/cloudflare-warp-headless_amd64.deb
           https://github.com/${{ github.repository }}/releases/latest/download/SHA256SUMS
 
           This run built $(basename "${versioned[0]}").
@@ -82,3 +84,13 @@ jobs:
             cloudflare-warp-headless_amd64.deb \
             "${versioned[0]}" \
             SHA256SUMS
+
+      - name: Publish dual-stack install-dist branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          bash ./publish-install-dist.sh \
+            cloudflare-warp-headless_amd64.deb \
+            SHA256SUMS \
+            "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"

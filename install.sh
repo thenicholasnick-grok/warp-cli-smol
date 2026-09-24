@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# Install cloudflare-warp-headless on a guest VM from the rolling GitHub Release.
+# Install cloudflare-warp-headless on a guest VM from install-dist
+# (raw.githubusercontent.com — dual-stack). GitHub Release downloads stay
+# IPv4-only via github.com, which has no AAAA.
 # Primary use: curl -fsSL .../install.sh | sudo bash
 set -euo pipefail
 
+REPO="thenicholasnick-grok/warp-cli-smol"
+DIST_BRANCH="install-dist"
 STABLE_DEB_NAME="cloudflare-warp-headless_amd64.deb"
 STABLE_SUMS_NAME="SHA256SUMS"
-STABLE_DEB_URL="https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/${STABLE_DEB_NAME}"
-STABLE_SUMS_URL="https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/${STABLE_SUMS_NAME}"
+STABLE_DEB_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_DEB_NAME}"
+STABLE_SUMS_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_SUMS_NAME}"
 
 log() {
   printf '%s\n' "$*"
@@ -28,7 +32,7 @@ fetch_release_asset() {
   log "Downloading ${url}"
   curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url" || rc=$?
   if [[ "$rc" -ne 0 ]]; then
-    die "failed to download ${url} (curl exit ${rc}). Need outbound HTTPS to github.com releases."
+    die "failed to download ${url} (curl exit ${rc}). Need outbound HTTPS to raw.githubusercontent.com."
   fi
   [[ -s "$dest" ]] || die "$empty_msg"
 }
