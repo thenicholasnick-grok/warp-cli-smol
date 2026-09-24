@@ -1,4 +1,4 @@
-# Never commit Debian packages
+# Never commit Debian packages to main (install-dist is a separate orphan branch)
 *.deb
 
 # Repack work and download trees
