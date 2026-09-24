@@ -11,6 +11,9 @@ STABLE_DEB_NAME="cloudflare-warp-headless_amd64.deb"
 STABLE_SUMS_NAME="SHA256SUMS"
 STABLE_DEB_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_DEB_NAME}"
 STABLE_SUMS_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_SUMS_NAME}"
+WARP_SVC_BIN="/bin/warp-svc"
+WARP_SVC_UNIT="warp-svc"
+MDM_XML_PATH="/var/lib/cloudflare-warp/mdm.xml"
 
 log() {
   printf '%s\n' "$*"
@@ -49,6 +52,85 @@ pkg_ok_installed() {
 
 official_warp_installed() {
   pkg_ok_installed cloudflare-warp
+}
+
+has_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+note_mdm() {
+  log "Zero Trust MDM (optional): ${MDM_XML_PATH} must be an Apple-style XML plist <dict> (not key=value). README has the snippet."
+}
+
+systemd_looks_usable() {
+  has_cmd systemctl || return 1
+  local state
+  state="$(systemctl is-system-running 2>/dev/null || true)"
+  case "$state" in
+    running|degraded|starting|initializing|maintenance) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+warp_svc_unit_present() {
+  [[ -f /lib/systemd/system/warp-svc.service || -f /usr/lib/systemd/system/warp-svc.service ]] && return 0
+  systemctl cat "${WARP_SVC_UNIT}.service" >/dev/null 2>&1
+}
+
+# Silent when /bin/warp-svc is absent, or when only setcap exists (cannot inspect).
+advise_caps() {
+  [[ -e "$WARP_SVC_BIN" ]] || return 0
+  if ! has_cmd getcap && ! has_cmd setcap; then
+    warn "setcap is missing. apt-get install -y libcap2-bin, then dpkg-reconfigure cloudflare-warp-headless"
+    return 0
+  fi
+  has_cmd getcap || return 0
+  local caps
+  caps="$(getcap "$WARP_SVC_BIN" 2>/dev/null || true)"
+  if [[ "$caps" != *cap_net_admin* ]]; then
+    warn "capabilities on ${WARP_SVC_BIN} look incomplete. apt-get install -y libcap2-bin, then dpkg-reconfigure cloudflare-warp-headless"
+  fi
+}
+
+# Never fails the installer: enable/start is already || true in postinst; MDM is optional.
+advise_warp_svc() {
+  if ! has_cmd systemctl; then
+    warn "systemctl is not available; this package expects systemd to run warp-svc."
+    warn "Start the daemon manually if needed: ${WARP_SVC_BIN}"
+    advise_caps
+    return 0
+  fi
+
+  if ! systemd_looks_usable; then
+    warn "systemd does not appear to be running (container or non-systemd host)."
+    warn "This package expects systemd. Start the daemon manually if needed: ${WARP_SVC_BIN}"
+    advise_caps
+    return 0
+  fi
+
+  if ! warp_svc_unit_present; then
+    warn "warp-svc.service unit file is missing (unexpected for this package). Reinstall cloudflare-warp-headless."
+    advise_caps
+    return 0
+  fi
+
+  local active enabled
+  active="$(systemctl is-active "${WARP_SVC_UNIT}" 2>/dev/null || true)"
+  enabled="$(systemctl is-enabled "${WARP_SVC_UNIT}" 2>/dev/null || true)"
+
+  if [[ "$active" == "active" || "$active" == "activating" ]]; then
+    log "warp-svc is running."
+    if [[ "$enabled" == "disabled" || "$enabled" == "masked" ]]; then
+      log "To enable on boot: systemctl enable ${WARP_SVC_UNIT}"
+    fi
+    advise_caps
+    return 0
+  fi
+
+  warn "warp-svc is not running (${active:-unknown})."
+  warn "Check: systemctl status ${WARP_SVC_UNIT}"
+  warn "Start and enable: systemctl enable --now ${WARP_SVC_UNIT}"
+  advise_caps
 }
 
 # Verify $1 (the downloaded .deb) against the published SHA256SUMS in $2.
@@ -136,7 +218,11 @@ install_headless_warp() {
   command -v warp-cli >/dev/null 2>&1 || die "warp-cli is not on PATH after install"
 
   log "Installed cloudflare-warp-headless. warp-cli is on PATH."
+  advise_warp_svc
   log "Do not apt-get install cloudflare-warp afterwards."
+  note_mdm
 }
 
-install_headless_warp "$@"
+if [[ "${INSTALL_SH_SOURCE:-0}" != 1 ]]; then
+  install_headless_warp "$@"
+fi
