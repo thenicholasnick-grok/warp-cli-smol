@@ -21,7 +21,7 @@ Cloudflare Team (ncano), 2026-05-23:
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
 
-No GitHub login. The one-liner downloads the stable release asset, checks it against `SHA256SUMS` from the same release, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match.
+No GitHub login. The one-liner downloads the stable release asset, checks it against `SHA256SUMS` from the same release, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match. The guest needs outbound HTTPS to `github.com` for those release assets; fetching `install.sh` from `raw.githubusercontent.com` is not enough.
 
 ```text
 https://github.com/thenicholasnick-grok/warp-cli-smol/releases/latest/download/cloudflare-warp-headless_amd64.deb
