@@ -17,6 +17,22 @@ die() {
   exit 1
 }
 
+# Download $1 to $2. On curl failure print a clear ERROR (URL + exit) and
+# exit non-zero. Empty-file message is $3 so callers keep their wording.
+fetch_release_asset() {
+  local url="$1"
+  local dest="$2"
+  local empty_msg="$3"
+  local rc=0
+
+  log "Downloading ${url}"
+  curl -fsSL --retry 3 --retry-delay 2 -o "$dest" "$url" || rc=$?
+  if [[ "$rc" -ne 0 ]]; then
+    die "failed to download ${url} (curl exit ${rc}). Need outbound HTTPS to github.com releases."
+  fi
+  [[ -s "$dest" ]] || die "$empty_msg"
+}
+
 warn() {
   printf 'WARNING: %s\n' "$*" >&2
 }
@@ -91,17 +107,15 @@ install_headless_warp() {
 
   local tmp deb sums
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  # Expand $tmp now. EXIT can run after this function's locals unwind, and
+  # under set -u a late "$tmp" becomes `tmp: unbound variable`.
+  # shellcheck disable=SC2064
+  trap "rm -rf -- $(printf '%q' "$tmp")" EXIT
   deb="${tmp}/${STABLE_DEB_NAME}"
   sums="${tmp}/${STABLE_SUMS_NAME}"
 
-  log "Downloading ${STABLE_DEB_URL}"
-  curl -fsSL --retry 3 --retry-delay 2 -o "$deb" "$STABLE_DEB_URL"
-  [[ -s "$deb" ]] || die "downloaded package is empty"
-
-  log "Downloading ${STABLE_SUMS_URL}"
-  curl -fsSL --retry 3 --retry-delay 2 -o "$sums" "$STABLE_SUMS_URL"
-  [[ -s "$sums" ]] || die "downloaded checksum file is empty"
+  fetch_release_asset "$STABLE_DEB_URL" "$deb" "downloaded package is empty"
+  fetch_release_asset "$STABLE_SUMS_URL" "$sums" "downloaded checksum file is empty"
 
   verify_release_deb "$deb" "$sums"
 
