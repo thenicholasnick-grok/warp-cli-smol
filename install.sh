@@ -59,7 +59,7 @@ has_cmd() {
 }
 
 note_mdm() {
-  log "Zero Trust MDM (optional): ${MDM_XML_PATH} with organization, auth_client_id, auth_client_secret. XML shape is in the README."
+  log "Zero Trust MDM (optional): ${MDM_XML_PATH} must be an Apple-style XML plist <dict> (not key=value). README has the snippet."
 }
 
 systemd_looks_usable() {

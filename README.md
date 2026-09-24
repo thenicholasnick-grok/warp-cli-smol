@@ -6,7 +6,7 @@ Headless Cloudflare WARP for Debian / guest VMs — `warp-cli` + `warp-svc`, no 
 curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
 ```
 
-Zero Trust MDM: drop `/var/lib/cloudflare-warp/mdm.xml` (`organization`, `auth_client_id`, `auth_client_secret`) and the running daemon connects.
+Zero Trust MDM: drop `/var/lib/cloudflare-warp/mdm.xml` as an Apple-style XML plist `<dict>` / `<key>` / `<string>` (not key=value). The running daemon connects.
 
 Install assets are served from `raw.githubusercontent.com` (dual-stack). GitHub Release downloads go through `github.com`, which has no AAAA — IPv6-only guests get `Network is unreachable`.
 
@@ -73,7 +73,7 @@ The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It dro
 <details>
 <summary>Zero Trust MDM: <code>/var/lib/cloudflare-warp/mdm.xml</code> shape.</summary>
 
-Place this file after install (placeholders only — use your team values). `warp-svc` must be running; the daemon connects on its own. Install does not require the file and never logs credentials.
+Must be this Apple-style XML plist `<dict>` (not key=value). Placeholders only — use your team values. `warp-svc` must be running; the daemon connects on its own. Install does not require the file and never logs credentials.
 
 ```xml
 <dict>
