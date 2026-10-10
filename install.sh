@@ -95,6 +95,10 @@ advise_caps() {
 
 # Never fails the installer: enable/start is already || true in postinst; MDM is optional.
 advise_warp_svc() {
+  if [[ ! -e /dev/net/tun ]]; then
+    warn "/dev/net/tun is missing. warp-svc cannot open a tunnel."
+  fi
+
   if ! has_cmd systemctl; then
     warn "systemctl is not available; this package expects systemd to run warp-svc."
     warn "Start the daemon manually if needed: ${WARP_SVC_BIN}"
@@ -148,8 +152,9 @@ verify_release_deb() {
   [[ -f "$sums" ]] || die "checksum file is missing"
   [[ -s "$sums" ]] || die "downloaded checksum file is empty"
 
+  # Length and a negated class, not {64}. Debian 12 mawk treats intervals as literals.
   line="$(awk -v name="$name" '
-    $1 ~ /^[0-9a-fA-F]{64}$/ && $NF == name {
+    length($1) == 64 && $1 !~ /[^0-9a-fA-F]/ && $NF == name {
       print
       found = 1
       exit
@@ -317,7 +322,11 @@ install_headless_warp() {
   verify_release_deb "$deb" "$sums"
 
   export DEBIAN_FRONTEND=noninteractive
-  if ! dpkg -i "$deb" </dev/null; then
+  if has_cmd apt-get; then
+    apt-get update </dev/null
+    # A leading ./ makes apt install this file. A bare name is a package lookup.
+    (cd "$tmp" && apt-get install -y "./${deb_name}" </dev/null)
+  elif ! dpkg -i "$deb" </dev/null; then
     log "dpkg reported missing dependencies; running apt-get install -f"
     apt-get update </dev/null
     apt-get install -f -y </dev/null
