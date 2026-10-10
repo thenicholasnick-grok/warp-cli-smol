@@ -25,7 +25,7 @@ Cloudflare Team (ncano), 2026-05-23:
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
 
-No GitHub login. The one-liner reads `VERSION_CODENAME` / `VERSION_ID`, downloads that suite's asset from `install-dist`, checks it against `SHA256SUMS` from the same branch, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match, and on anything other than Debian 12/13 amd64. The guest needs outbound HTTPS to `raw.githubusercontent.com` (not `github.com`). After a successful `dpkg -i`, `install.sh` checks whether systemd/`warp-svc` looks healthy and prints next steps if not. MDM is optional; install still exits 0 without it.
+No GitHub login. The one-liner reads `VERSION_CODENAME` / `VERSION_ID`, downloads that suite's asset from `install-dist`, checks it against `SHA256SUMS` from the same branch, then runs `apt-get install -y` on the local `.deb` so apt installs its dependencies. Install refuses if the checksum file is missing, empty, or does not match, and on anything other than Debian 12/13 amd64. The guest needs outbound HTTPS to `raw.githubusercontent.com` (not `github.com`). After a successful install, `install.sh` checks whether systemd/`warp-svc` looks healthy and prints next steps if not. MDM is optional; install still exits 0 without it.
 
 ```text
 https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_bookworm_amd64.deb
@@ -51,14 +51,15 @@ curl -6 -fsSI https://github.com/
 # expected: fail (no AAAA / Network is unreachable)
 ```
 
-Direct one-liner without the script (still verify before `dpkg -i`). Swap in `cloudflare-warp-headless_bookworm_amd64.deb` on Debian 12. The unsuffixed `cloudflare-warp-headless_amd64.deb` is the trixie build:
+Direct one-liner without the script (still verify before install). Swap in `cloudflare-warp-headless_bookworm_amd64.deb` on Debian 12. The unsuffixed `cloudflare-warp-headless_amd64.deb` is the trixie build:
 
 ```bash
 cd /tmp && \
 curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_trixie_amd64.deb && \
 curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS && \
 sha256sum -c --ignore-missing --strict SHA256SUMS && \
-sudo dpkg -i cloudflare-warp-headless_trixie_amd64.deb
+sudo apt-get update && \
+sudo apt-get install -y ./cloudflare-warp-headless_trixie_amd64.deb
 ```
 
 **Do not** install the official package afterwards:
@@ -109,7 +110,7 @@ Must be this Apple-style XML plist `<dict>` (not key=value). Placeholders only â
   - `cloudflare-warp-headless_trixie_amd64.deb`
   - `cloudflare-warp-headless_amd64.deb` (same bits as the trixie build; existing links)
   - `cloudflare-warp-headless_<suite>_<upstream-version>_amd64.deb` (versioned names)
-  - `SHA256SUMS` (one file covering every uploaded `.deb`; `install.sh` requires the suite-named line before `dpkg -i`)
+  - `SHA256SUMS` (one file covering every uploaded `.deb`; `install.sh` requires the suite-named line before `apt-get install`)
 - Force-pushes an orphan `install-dist` branch with the three stable `.deb`s and the same `SHA256SUMS` so IPv6-only guests can fetch via `raw.githubusercontent.com` without hitting `github.com:443`.
 
 Proofs must pass before either publish step runs.

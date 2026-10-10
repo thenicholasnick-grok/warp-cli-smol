@@ -76,7 +76,7 @@ jobs:
           require_sum() {
             local name="$1"
             awk -v name="$name" '
-              $1 ~ /^[0-9a-f]{64}$/ && $NF == name { found = 1 }
+              length($1) == 64 && $1 !~ /[^0-9a-fA-F]/ && $NF == name { found = 1 }
               END { exit !found }
             ' SHA256SUMS || { echo "SHA256SUMS missing ${name}" >&2; exit 1; }
           }

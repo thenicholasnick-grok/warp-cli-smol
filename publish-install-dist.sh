@@ -99,7 +99,7 @@ done
 sum_line_for() {
   local name="$1"
   awk -v name="$name" '
-    $1 ~ /^[0-9a-fA-F]{64}$/ && $NF == name {
+    length($1) == 64 && $1 !~ /[^0-9a-fA-F]/ && $NF == name {
       print
       found = 1
       exit

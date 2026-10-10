@@ -131,6 +131,48 @@ filter_depends() {
   printf '%s' "$result"
 }
 
+depends_has_prefix() {
+  local raw="$1"
+  local prefix="$2"
+  local rest item name
+  rest="$raw"
+  while [[ -n "$rest" ]]; do
+    item="${rest%%,*}"
+    if [[ "$rest" == *,* ]]; then
+      rest="${rest#*,}"
+    else
+      rest=""
+    fi
+    name="$(dep_name "$item")"
+    if [[ "$name" == "$prefix"* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# warp-svc needs libtss2-esys.so.0, libtss2-tctildr.so.0, and libtss2-mu.so.0.
+# Upstream Depends names the esys and tctildr packages. It omits mu.
+ensure_tss_depends() {
+  local raw="$1"
+  local mu_pkg
+  case "$UPSTREAM_SUITE" in
+    bookworm) mu_pkg="libtss2-mu0" ;;
+    trixie) mu_pkg="libtss2-mu-4.0.1-0t64" ;;
+    *) die "no libtss2-mu package mapped for suite ${UPSTREAM_SUITE}" ;;
+  esac
+  depends_has_prefix "$raw" "libtss2-esys" \
+    || die "Depends is missing the package that provides libtss2-esys.so.0"
+  depends_has_prefix "$raw" "libtss2-tctildr" \
+    || die "Depends is missing the package that provides libtss2-tctildr.so.0"
+  if depends_has_prefix "$raw" "libtss2-mu"; then
+    printf '%s' "$raw"
+    return 0
+  fi
+  log "Adding Depends item: ${mu_pkg} (provides libtss2-mu.so.0)"
+  printf '%s, %s' "$raw" "$mu_pkg"
+}
+
 # Print Version, Filename, and SHA256 (may be empty) for the upstream package.
 # Handles blank-line-separated stanzas in a Debian Packages index.
 parse_upstream_stanza() {
@@ -346,6 +388,7 @@ control="${EXTRACT_DIR}/DEBIAN/control"
 orig_depends="$(awk -F ': ' '/^Depends: / {sub(/^Depends: /, ""); print; exit}' "$control")"
 [[ -n "$orig_depends" ]] || die "missing Depends in upstream control"
 new_depends="$(filter_depends "$orig_depends")"
+new_depends="$(ensure_tss_depends "$new_depends")"
 log "New Depends: ${new_depends}"
 
 rewrite_control "$control" "${control}.new" "$new_depends"
