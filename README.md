@@ -6,21 +6,8 @@ Headless Cloudflare WARP for Debian / guest VMs — `warp-cli` + `warp-svc`, no 
 curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash
 ```
 
-**Warning.** By default this installer sets up a weekly root job that downloads and runs whatever `install.sh` is on `main` at that moment. That is remote code execution as root, and it trusts this repo, GitHub, and the maintainer every week. If you do not fully trust that, fork the repo and run your own CI build, point the installer at your fork, or opt out with `--no-auto-update` or `WARP_SMOL_AUTO_UPDATE=0` and update manually.
-
-Weekly auto-update is on by default. It runs every Tuesday at 20:17 UTC. When cron is installed, that job is the single file `/etc/cron.d/warp-cli-smol` (`CRON_TZ=UTC`), rewritten on every install so a second copy is never added. When the host has systemd and no cron, the job is `warp-cli-smol.timer` (`OnCalendar=Tue *-*-* 20:17:00 UTC`) instead. Only one of those is installed. The weekly run downloads and runs `install.sh`. It does not register or connect with `warp-cli`. It may finish with `warp-cli --accept-tos status`, and that status check does not fail the job. It does not change `/var/lib/cloudflare-warp`.
-
-Opt out, and remove a job that is already installed, by running the installer again:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash -s -- --no-auto-update
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo WARP_SMOL_AUTO_UPDATE=0 bash
-```
-
-A fork that should refresh from itself has to change `REPO` in `install.sh` before installing. Otherwise the weekly job still downloads this repository.
+> [!CAUTION]
+> Installs a weekly root job that runs `main`'s install.sh — remote code execution. Don't trust it? Fork and build your own, or add `--no-auto-update`.
 
 Zero Trust MDM: drop `/var/lib/cloudflare-warp/mdm.xml` as an Apple-style XML plist `<dict>` / `<key>` / `<string>` (not key=value). The running daemon connects.
 
@@ -37,6 +24,25 @@ Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which d
 Cloudflare Team (ncano), 2026-05-23:
 
 ![ncano, Cloudflare Team, on a headless WARP package](docs/cloudflare-team-headless-quote.jpg)
+
+<details>
+<summary>Weekly auto-update is on by default. Tuesday 20:17 UTC. How to turn it off.</summary>
+
+When cron is installed, the job is the single file `/etc/cron.d/warp-cli-smol` (`CRON_TZ=UTC`), rewritten on every install so a second copy is never added. When the host has systemd and no cron, the job is `warp-cli-smol.timer` (`OnCalendar=Tue *-*-* 20:17:00 UTC`) instead. Only one of those is installed. The weekly run downloads and runs `install.sh`. It does not register or connect with `warp-cli`. It may finish with `warp-cli --accept-tos status`, and that status check does not fail the job. It does not change `/var/lib/cloudflare-warp`.
+
+Opt out, and remove a job that is already installed, by running the installer again:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash -s -- --no-auto-update
+```
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo WARP_SMOL_AUTO_UPDATE=0 bash
+```
+
+A fork that should refresh from itself has to change `REPO` in `install.sh` before installing. Otherwise the weekly job still downloads this repository.
+
+</details>
 
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
