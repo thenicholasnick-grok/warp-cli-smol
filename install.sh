@@ -6,12 +6,20 @@
 # from /etc/os-release (VERSION_CODENAME / VERSION_ID). Override with
 # WARP_SMOL_SUITE=bookworm or WARP_SMOL_SUITE=trixie.
 # Primary use: curl -fsSL .../install.sh | sudo bash
+# Weekly auto-update is on by default (Tuesday 20:17 UTC).
+# Opt out: --no-auto-update or WARP_SMOL_AUTO_UPDATE=0.
 set -euo pipefail
 
 REPO="thenicholasnick-grok/warp-cli-smol"
 DIST_BRANCH="install-dist"
 STABLE_SUMS_NAME="SHA256SUMS"
 STABLE_SUMS_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_SUMS_NAME}"
+REFRESH_URL="https://raw.githubusercontent.com/${REPO}/main/install.sh"
+AUTO_UPDATE_CRON="/etc/cron.d/warp-cli-smol"
+AUTO_UPDATE_SERVICE="/etc/systemd/system/warp-cli-smol.service"
+AUTO_UPDATE_TIMER="/etc/systemd/system/warp-cli-smol.timer"
+# Same sentence as the README warning. Printed when the weekly root job is written.
+AUTO_UPDATE_WARNING="By default this installer sets up a weekly root job that downloads and runs whatever install.sh is on main at that moment. That is remote code execution as root, and it trusts this repo, GitHub, and the maintainer every week. If you do not fully trust that, fork the repo and run your own CI build, point the installer at your fork, or opt out with --no-auto-update or WARP_SMOL_AUTO_UPDATE=0 and update manually."
 WARP_SVC_BIN="/bin/warp-svc"
 WARP_SVC_UNIT="warp-svc"
 MDM_XML_PATH="/var/lib/cloudflare-warp/mdm.xml"
@@ -271,6 +279,116 @@ select_suite() {
   suite_from_debian_release "$codename" "$version_id"
 }
 
+host_has_cron() {
+  [[ -d /etc/cron.d ]] || return 1
+  [[ -x /usr/sbin/cron || -x /usr/sbin/crond ]] && return 0
+  has_cmd cron && return 0
+  has_cmd crond && return 0
+  return 1
+}
+
+# One scheduler per host. Cron wins when it is installed. systemd is the fallback.
+parse_auto_update() {
+  local arg
+  AUTO_UPDATE=1
+  if [[ "${WARP_SMOL_AUTO_UPDATE:-}" == "0" ]]; then
+    AUTO_UPDATE=0
+  fi
+  for arg in "$@"; do
+    case "$arg" in
+      --no-auto-update)
+        AUTO_UPDATE=0
+        ;;
+      *)
+        die "unknown argument: ${arg}"
+        ;;
+    esac
+  done
+}
+
+refresh_command() {
+  local sink
+  if has_cmd logger; then
+    sink="logger -t warp-cli-smol"
+  else
+    sink="tee -a /var/log/warp-cli-smol.log >/dev/null"
+  fi
+  printf '%s' "{ curl -fsSL ${REFRESH_URL} | bash; } 2>&1 | ${sink}; { warp-cli --accept-tos status || true; } 2>&1 | ${sink}"
+}
+
+remove_auto_update_jobs() {
+  rm -f "$AUTO_UPDATE_CRON"
+  if has_cmd systemctl; then
+    systemctl disable --now warp-cli-smol.timer >/dev/null 2>&1 || true
+  fi
+  if [[ -d /etc/systemd/system ]]; then
+    rm -f "$AUTO_UPDATE_SERVICE" "$AUTO_UPDATE_TIMER"
+  fi
+  if systemd_looks_usable; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
+}
+
+write_auto_update_cron() {
+  local cmd tmp
+  cmd="$(refresh_command)"
+  tmp="$(mktemp "${AUTO_UPDATE_CRON}.XXXXXX")"
+  cat >"$tmp" <<EOF
+CRON_TZ=UTC
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+17 20 * * 2 root ${cmd}
+EOF
+  chown root:root "$tmp"
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$AUTO_UPDATE_CRON"
+}
+
+write_auto_update_timer() {
+  local cmd
+  cmd="$(refresh_command)"
+  cat >"$AUTO_UPDATE_SERVICE" <<EOF
+[Unit]
+Description=Weekly refresh of cloudflare-warp-headless
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '${cmd}'
+EOF
+  cat >"$AUTO_UPDATE_TIMER" <<EOF
+[Unit]
+Description=Weekly refresh of cloudflare-warp-headless
+
+[Timer]
+OnCalendar=Tue *-*-* 20:17:00 UTC
+
+[Install]
+WantedBy=timers.target
+EOF
+  chmod 644 "$AUTO_UPDATE_SERVICE" "$AUTO_UPDATE_TIMER"
+  systemctl daemon-reload
+  systemctl enable warp-cli-smol.timer
+  systemctl restart warp-cli-smol.timer
+}
+
+# Rewrites the one job in place. The weekly run calls this again and does not add a second job.
+install_auto_update_job() {
+  if host_has_cron; then
+    remove_auto_update_jobs
+    write_auto_update_cron
+    log "Auto-update is on. /etc/cron.d/warp-cli-smol runs the installer every Tuesday at 20:17 UTC."
+    warn "$AUTO_UPDATE_WARNING"
+    return 0
+  fi
+  if systemd_looks_usable; then
+    remove_auto_update_jobs
+    write_auto_update_timer
+    log "Auto-update is on. systemd timer warp-cli-smol.timer runs the installer every Tuesday at 20:17 UTC."
+    warn "$AUTO_UPDATE_WARNING"
+    return 0
+  fi
+  warn "Auto-update was not scheduled. This host has no cron, and systemd is not running. Install cron and re-run install.sh, or update manually."
+}
+
 require_root() {
   if [[ "$(id -u)" -eq 0 ]]; then
     return 0
@@ -289,6 +407,11 @@ require_root() {
 
 install_headless_warp() {
   require_root "$@"
+  parse_auto_update "$@"
+  if [[ "$AUTO_UPDATE" -eq 0 ]]; then
+    remove_auto_update_jobs
+    log "Auto-update is off. Removed any weekly refresh job."
+  fi
 
   command -v curl >/dev/null 2>&1 || die "curl is required"
   command -v dpkg >/dev/null 2>&1 || die "dpkg is required"
@@ -341,6 +464,9 @@ install_headless_warp() {
   advise_warp_svc
   log "Do not apt-get install cloudflare-warp afterwards."
   note_mdm
+  if [[ "$AUTO_UPDATE" -eq 1 ]]; then
+    install_auto_update_job
+  fi
 }
 
 if [[ "${INSTALL_SH_SOURCE:-0}" != 1 ]]; then
