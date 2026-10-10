@@ -12,9 +12,9 @@ Install assets are served from `raw.githubusercontent.com` (dual-stack). GitHub 
 
 ![Dark-mode terminal: curl | sudo bash install of cloudflare-warp-headless](docs/cloudflare-headless-quote.png)
 
-**Updates are automatic:** each CI run live-fetches Cloudflare's current Debian trixie `Packages` index (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` GitHub Release **and** force-pushes the same stable-name `.deb` + `SHA256SUMS` to the orphan `install-dist` branch (single commit, replaced each run). Repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
+**Updates are automatic:** each CI run live-fetches Cloudflare's current Debian bookworm and trixie `Packages` indexes (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` GitHub Release **and** force-pushes the stable `.deb`s + one `SHA256SUMS` to the orphan `install-dist` branch (single commit, replaced each run). Repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
 
-Unofficial. Debian trixie amd64 only — not an official Cloudflare package.
+Unofficial. Debian 12 (bookworm) and Debian 13 (trixie), amd64 only — not an official Cloudflare package. `install.sh` reads `/etc/os-release` and installs the matching build (`WARP_SMOL_SUITE=bookworm` or `WARP_SMOL_SUITE=trixie` overrides detection).
 
 Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 
@@ -25,18 +25,24 @@ Cloudflare Team (ncano), 2026-05-23:
 <details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
 
-No GitHub login. The one-liner downloads the stable asset from `install-dist`, checks it against `SHA256SUMS` from the same branch, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match. The guest needs outbound HTTPS to `raw.githubusercontent.com` (not `github.com`). After a successful `dpkg -i`, `install.sh` checks whether systemd/`warp-svc` looks healthy and prints next steps if not. MDM is optional; install still exits 0 without it.
+No GitHub login. The one-liner reads `VERSION_CODENAME` / `VERSION_ID`, downloads that suite's asset from `install-dist`, checks it against `SHA256SUMS` from the same branch, then `dpkg -i`s it. Install refuses if the checksum file is missing, empty, or does not match, and on anything other than Debian 12/13 amd64. The guest needs outbound HTTPS to `raw.githubusercontent.com` (not `github.com`). After a successful `dpkg -i`, `install.sh` checks whether systemd/`warp-svc` looks healthy and prints next steps if not. MDM is optional; install still exits 0 without it.
 
 ```text
+https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_bookworm_amd64.deb
+https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_trixie_amd64.deb
 https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_amd64.deb
 https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS
 ```
+
+`cloudflare-warp-headless_amd64.deb` stays the trixie build so existing links keep working. Bookworm and trixie each have their own suite-named `.deb`. One `SHA256SUMS` covers both.
 
 Browsers on IPv4 can also use the rolling GitHub Release (`releases/latest`).
 
 Prove on an IPv6-only guest:
 
 ```bash
+curl -6 -fsSI https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_bookworm_amd64.deb
+curl -6 -fsSI https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_trixie_amd64.deb
 curl -6 -fsSI https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_amd64.deb
 curl -6 -fsSI https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS
 # expected: HTTP 200
@@ -45,14 +51,14 @@ curl -6 -fsSI https://github.com/
 # expected: fail (no AAAA / Network is unreachable)
 ```
 
-Direct one-liner without the script (still verify before `dpkg -i`):
+Direct one-liner without the script (still verify before `dpkg -i`). Swap in `cloudflare-warp-headless_bookworm_amd64.deb` on Debian 12. The unsuffixed `cloudflare-warp-headless_amd64.deb` is the trixie build:
 
 ```bash
 cd /tmp && \
-curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_amd64.deb && \
+curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/cloudflare-warp-headless_trixie_amd64.deb && \
 curl -fsSL -O https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/install-dist/SHA256SUMS && \
 sha256sum -c --ignore-missing --strict SHA256SUMS && \
-sudo dpkg -i cloudflare-warp-headless_amd64.deb
+sudo dpkg -i cloudflare-warp-headless_trixie_amd64.deb
 ```
 
 **Do not** install the official package afterwards:
@@ -66,7 +72,7 @@ Do not add Cloudflare's APT repo and `apt-get install cloudflare-warp` on the sa
 
 The rebuilt package keeps `warp-cli`, `warp-svc`, and `warp-svc.service`. It drops desktop-file, AppIndicator, and WebKit dependencies, plus the taskbar/Flutter tree.
 
-`.deb` files are never committed to `main`. The rolling stable `.deb` lives only on `install-dist` (force-replaced each successful CI run). Cloudflare also publishes bookworm, jammy, noble, and other suites; those are different `.deb`s and are not used.
+`.deb` files are never committed to `main`. The rolling stable `.deb`s live only on `install-dist` (force-replaced each successful CI run). Cloudflare also publishes jammy, noble, and other suites; those are different `.deb`s and are not used.
 
 </details>
 
@@ -93,16 +99,18 @@ Must be this Apple-style XML plist `<dict>` (not key=value). Placeholders only �
 
 - `ubuntu-latest`, on `workflow_dispatch` and weekly Monday 06:00 UTC.
 - Installs `dpkg-dev` and `binutils`.
-- Runs `./repack.sh` against the live Debian trixie index from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/trixie/main/binary-amd64/Packages`). The job fails if Filename is not under `pool/trixie/` or if any proof fails:
+- Runs `./repack.sh bookworm` and `./repack.sh trixie` against the live indexes from [Cloudflare's public APT repo](https://pkg.cloudflareclient.com) (`dists/<suite>/main/binary-amd64/Packages`). The job fails if either suite fails, if Filename is not under `pool/<suite>/`, or if any proof fails:
   1. New control has no `webkit` and no `appindicator`.
   2. `readelf -d` on `bin/warp-cli` `NEEDED` is only `libc`, `libm`, `libgcc_s`.
   3. `readelf -d` on `bin/warp-svc` does not show webkit or gtk.
-- Uploads the versioned `.deb` with `actions/upload-artifact` (`retention-days: 14`).
+- Uploads both versioned `.deb`s with `actions/upload-artifact` (`retention-days: 14`).
 - Recreates the rolling GitHub Release tagged `latest` and uploads:
-  - `cloudflare-warp-headless_amd64.deb` (stable name)
-  - `cloudflare-warp-headless_<upstream-version>_amd64.deb` (same bits, versioned name)
-  - `SHA256SUMS` (sha256 of both `.deb` names; `install.sh` requires the stable-name line before `dpkg -i`)
-- Force-pushes an orphan `install-dist` branch with only the stable `.deb` and the same `SHA256SUMS` so IPv6-only guests can fetch via `raw.githubusercontent.com` without hitting `github.com:443`.
+  - `cloudflare-warp-headless_bookworm_amd64.deb`
+  - `cloudflare-warp-headless_trixie_amd64.deb`
+  - `cloudflare-warp-headless_amd64.deb` (same bits as the trixie build; existing links)
+  - `cloudflare-warp-headless_<suite>_<upstream-version>_amd64.deb` (versioned names)
+  - `SHA256SUMS` (one file covering every uploaded `.deb`; `install.sh` requires the suite-named line before `dpkg -i`)
+- Force-pushes an orphan `install-dist` branch with the three stable `.deb`s and the same `SHA256SUMS` so IPv6-only guests can fetch via `raw.githubusercontent.com` without hitting `github.com:443`.
 
 Proofs must pass before either publish step runs.
 
@@ -113,9 +121,10 @@ Proofs must pass before either publish step runs.
 
 ```bash
 sudo apt-get install -y dpkg-dev binutils
-./repack.sh
+./repack.sh bookworm
+./repack.sh trixie
 ```
 
-Work files land in `downloads/` and `work/` (gitignored). The output `.deb` is written to the repo root and is also gitignored.
+Work files land in `downloads/<suite>/` and `work/<suite>/` (gitignored). The output `.deb` is written to the repo root and is also gitignored.
 
 </details>

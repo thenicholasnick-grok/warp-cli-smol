@@ -2,14 +2,15 @@
 # Install cloudflare-warp-headless on a guest VM from install-dist
 # (raw.githubusercontent.com — dual-stack). GitHub Release downloads stay
 # IPv4-only via github.com, which has no AAAA.
+# Debian 12 (bookworm) and Debian 13 (trixie), amd64 only. The suite comes
+# from /etc/os-release (VERSION_CODENAME / VERSION_ID). Override with
+# WARP_SMOL_SUITE=bookworm or WARP_SMOL_SUITE=trixie.
 # Primary use: curl -fsSL .../install.sh | sudo bash
 set -euo pipefail
 
 REPO="thenicholasnick-grok/warp-cli-smol"
 DIST_BRANCH="install-dist"
-STABLE_DEB_NAME="cloudflare-warp-headless_amd64.deb"
 STABLE_SUMS_NAME="SHA256SUMS"
-STABLE_DEB_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_DEB_NAME}"
 STABLE_SUMS_URL="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${STABLE_SUMS_NAME}"
 WARP_SVC_BIN="/bin/warp-svc"
 WARP_SVC_UNIT="warp-svc"
@@ -162,6 +163,109 @@ verify_release_deb() {
   fi
 }
 
+read_os_release_field() {
+  local file="$1"
+  local key="$2"
+  local line val
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      "${key}="*)
+        val="${line#"${key}="}"
+        val="${val%\"}"
+        val="${val#\"}"
+        val="${val%\'}"
+        val="${val#\'}"
+        printf '%s' "$val"
+        return 0
+        ;;
+    esac
+  done <"$file"
+  return 0
+}
+
+suite_from_debian_release() {
+  local codename="$1"
+  local version_id="$2"
+  local from_code="" from_id=""
+
+  case "$codename" in
+    bookworm) from_code="bookworm" ;;
+    trixie) from_code="trixie" ;;
+    "") ;;
+    *)
+      die "unsupported Debian release: VERSION_CODENAME=${codename} (Debian 12 bookworm and Debian 13 trixie only)"
+      ;;
+  esac
+
+  case "$version_id" in
+    12) from_id="bookworm" ;;
+    13) from_id="trixie" ;;
+    "") ;;
+    *)
+      die "unsupported Debian release: VERSION_ID=${version_id} (Debian 12 bookworm and Debian 13 trixie only)"
+      ;;
+  esac
+
+  if [[ -n "$from_code" && -n "$from_id" && "$from_code" != "$from_id" ]]; then
+    die "Debian release mismatch: VERSION_CODENAME=${codename} VERSION_ID=${version_id}"
+  fi
+  if [[ -z "$from_code" && -z "$from_id" ]]; then
+    die "could not detect Debian release from VERSION_CODENAME or VERSION_ID (Debian 12 bookworm and Debian 13 trixie only)"
+  fi
+  printf '%s' "${from_code:-$from_id}"
+}
+
+suite_deb_name() {
+  case "$1" in
+    bookworm|trixie)
+      printf 'cloudflare-warp-headless_%s_amd64.deb' "$1"
+      ;;
+    *)
+      die "internal error: bad suite '${1}'"
+      ;;
+  esac
+}
+
+# select_suite <arch> <os-release-path>
+# WARP_SMOL_SUITE=bookworm|trixie overrides the suite from os-release.
+# Architecture is never overridden.
+select_suite() {
+  local arch="$1"
+  local os_release="$2"
+  local id codename version_id
+
+  case "$arch" in
+    amd64|x86_64) ;;
+    *)
+      die "unsupported architecture: ${arch} (amd64 only)"
+      ;;
+  esac
+
+  if [[ -n "${WARP_SMOL_SUITE:-}" ]]; then
+    case "$WARP_SMOL_SUITE" in
+      bookworm|trixie)
+        printf '%s' "$WARP_SMOL_SUITE"
+        return 0
+        ;;
+      *)
+        die "WARP_SMOL_SUITE must be bookworm or trixie (got: ${WARP_SMOL_SUITE})"
+        ;;
+    esac
+  fi
+
+  [[ -f "$os_release" ]] || die "cannot read ${os_release} to detect the Debian release"
+
+  id="$(read_os_release_field "$os_release" ID)"
+  codename="$(read_os_release_field "$os_release" VERSION_CODENAME)"
+  version_id="$(read_os_release_field "$os_release" VERSION_ID)"
+
+  if [[ "$id" != "debian" ]]; then
+    die "unsupported operating system: ${id:-unknown} (Debian 12 bookworm and Debian 13 trixie only)"
+  fi
+
+  suite_from_debian_release "$codename" "$version_id"
+}
+
 require_root() {
   if [[ "$(id -u)" -eq 0 ]]; then
     return 0
@@ -185,6 +289,13 @@ install_headless_warp() {
   command -v dpkg >/dev/null 2>&1 || die "dpkg is required"
   command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required"
 
+  local arch suite deb_name deb_url
+  arch="$(dpkg --print-architecture)"
+  suite="$(select_suite "$arch" /etc/os-release)"
+  deb_name="$(suite_deb_name "$suite")"
+  deb_url="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${deb_name}"
+  log "Selected ${suite} package ${deb_name}"
+
   if official_warp_installed; then
     die "official cloudflare-warp is installed. Remove it first. Do not apt-get install cloudflare-warp; that package fights this headless build."
   fi
@@ -197,10 +308,10 @@ install_headless_warp() {
   # under set -u a late "$tmp" becomes `tmp: unbound variable`.
   # shellcheck disable=SC2064
   trap "rm -rf -- $(printf '%q' "$tmp")" EXIT
-  deb="${tmp}/${STABLE_DEB_NAME}"
+  deb="${tmp}/${deb_name}"
   sums="${tmp}/${STABLE_SUMS_NAME}"
 
-  fetch_release_asset "$STABLE_DEB_URL" "$deb" "downloaded package is empty"
+  fetch_release_asset "$deb_url" "$deb" "downloaded package is empty"
   fetch_release_asset "$STABLE_SUMS_URL" "$sums" "downloaded checksum file is empty"
 
   verify_release_deb "$deb" "$sums"

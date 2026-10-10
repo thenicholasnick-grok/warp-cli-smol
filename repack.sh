@@ -1,11 +1,26 @@
 #!/usr/bin/env bash
-# Fetch the current Debian trixie cloudflare-warp amd64 .deb from
-# Cloudflare's public repo and rebuild it as cloudflare-warp-headless
-# (CLI + warp-svc only). Other suites (bookworm, jammy, noble, …) are
-# different packages and must not be used.
+# Fetch the current Debian bookworm or trixie cloudflare-warp amd64 .deb
+# from Cloudflare's public repo and rebuild it as cloudflare-warp-headless
+# (CLI + warp-svc only). No version pin: the suite's Packages index is
+# fetched live. Other suites (jammy, noble, …) are different packages.
+#
+# Usage: repack.sh <bookworm|trixie>
 set -euo pipefail
 
-UPSTREAM_SUITE="trixie"
+usage() {
+  printf 'Usage: %s <bookworm|trixie>\n' "${0##*/}" >&2
+  exit 2
+}
+
+[[ $# -eq 1 ]] || usage
+case "$1" in
+  bookworm|trixie) UPSTREAM_SUITE="$1" ;;
+  *)
+    printf 'ERROR: unsupported suite: %s (expected bookworm or trixie)\n' "$1" >&2
+    exit 1
+    ;;
+esac
+
 UPSTREAM_BASE="https://pkg.cloudflareclient.com"
 PACKAGES_URL="${UPSTREAM_BASE}/dists/${UPSTREAM_SUITE}/main/binary-amd64/Packages"
 UPSTREAM_PACKAGE="cloudflare-warp"
@@ -37,8 +52,8 @@ KEEP_PATHS=(
 )
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOWNLOAD_DIR="${ROOT}/downloads"
-WORK_DIR="${ROOT}/work"
+DOWNLOAD_DIR="${ROOT}/downloads/${UPSTREAM_SUITE}"
+WORK_DIR="${ROOT}/work/${UPSTREAM_SUITE}"
 EXTRACT_DIR="${WORK_DIR}/extract"
 
 log() {
@@ -309,7 +324,7 @@ log "Packages index: ${PACKAGES_URL}"
 log "Upstream Version: ${upstream_version}"
 log "Upstream Filename: ${upstream_filename}"
 if [[ "$upstream_filename" != pool/${UPSTREAM_SUITE}/* ]]; then
-  die "refusing non-trixie package: Filename is ${upstream_filename} (expected pool/${UPSTREAM_SUITE}/...)"
+  die "refusing package outside pool/${UPSTREAM_SUITE}/: Filename is ${upstream_filename}"
 fi
 log "Confirmed Debian ${UPSTREAM_SUITE} pool path"
 
@@ -358,7 +373,7 @@ prove_control "$control"
 prove_warp_cli "${EXTRACT_DIR}/bin/warp-cli"
 prove_warp_svc "${EXTRACT_DIR}/bin/warp-svc"
 
-out_deb="${ROOT}/${OUTPUT_PACKAGE}_${upstream_version}_amd64.deb"
+out_deb="${ROOT}/${OUTPUT_PACKAGE}_${UPSTREAM_SUITE}_${upstream_version}_amd64.deb"
 log "Building ${out_deb}"
 rm -f "$out_deb"
 dpkg-deb -b "$EXTRACT_DIR" "$out_deb"
