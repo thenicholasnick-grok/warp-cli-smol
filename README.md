@@ -26,25 +26,6 @@ Cloudflare Team (ncano), 2026-05-23:
 ![ncano, Cloudflare Team, on a headless WARP package](docs/cloudflare-team-headless-quote.jpg)
 
 <details>
-<summary>Weekly auto-update is on by default. Tuesday 20:17 UTC. How to turn it off.</summary>
-
-When cron is installed, the job is the single file `/etc/cron.d/warp-cli-smol` (`CRON_TZ=UTC`), rewritten on every install so a second copy is never added. When the host has systemd and no cron, the job is `warp-cli-smol.timer` (`OnCalendar=Tue *-*-* 20:17:00 UTC`) instead. Only one of those is installed. The weekly run downloads and runs `install.sh`. It does not register or connect with `warp-cli`. It may finish with `warp-cli --accept-tos status`, and that status check does not fail the job. It does not change `/var/lib/cloudflare-warp`.
-
-Opt out, and remove a job that is already installed, by running the installer again:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash -s -- --no-auto-update
-```
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo WARP_SMOL_AUTO_UPDATE=0 bash
-```
-
-A fork that should refresh from itself has to change `REPO` in `install.sh` before installing. Otherwise the weekly job still downloads this repository.
-
-</details>
-
-<details>
 <summary>Install details: direct <code>.deb</code> URL, and do not <code>apt-get install cloudflare-warp</code>.</summary>
 
 No GitHub login. The one-liner reads `VERSION_CODENAME` / `VERSION_ID`, downloads that suite's asset from `install-dist`, checks it against `SHA256SUMS` from the same branch, then runs `apt-get install -y` on the local `.deb` so apt installs its dependencies. Install refuses if the checksum file is missing, empty, or does not match, and on anything other than Debian 12/13 amd64. The guest needs outbound HTTPS to `raw.githubusercontent.com` (not `github.com`). After a successful install, `install.sh` checks whether systemd/`warp-svc` looks healthy and prints next steps if not. MDM is optional; install still exits 0 without it.
