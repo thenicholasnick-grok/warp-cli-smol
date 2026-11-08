@@ -1,6 +1,11 @@
 # Never commit Debian packages to main (install-dist is a separate orphan branch)
 *.deb
 
+# Generated Arch wrap outputs (published from CI, not committed)
+/PKGBUILD
+/cloudflare-warp-headless.install
+/*.pkg.tar.zst
+
 # Repack work and download trees
 /work/
 /downloads/
