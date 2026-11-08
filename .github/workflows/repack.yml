@@ -10,10 +10,11 @@ permissions:
 
 jobs:
   repack:
-    runs-on: ubuntu-latest
+    # Run 42459212730 resolved ubuntu-latest to ubuntu-26.04. Repack and makepkg passed on that image.
+    runs-on: ubuntu-26.04
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install dpkg-dev and binutils
         run: |
@@ -49,7 +50,7 @@ jobs:
             bash -lc "pacman -Sy --noconfirm --needed base-devel libarchive && bash ./arch-wrap.sh $(printf '%q' "${trixie_ver[0]}") /work"
 
       - name: Upload headless package artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cloudflare-warp-headless
           path: |
@@ -170,6 +171,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
+          arch_pkg=(cloudflare-warp-headless-*-x86_64.pkg.tar.zst)
+          if ((${#arch_pkg[@]} != 1)); then
+            echo "expected exactly one Arch package, found: ${arch_pkg[*]:-none}" >&2
+            exit 1
+          fi
+          [[ -s PKGBUILD && -s cloudflare-warp-headless.install ]] || {
+            echo "Arch PKGBUILD or install hook is missing" >&2
+            exit 1
+          }
           bash ./publish-install-dist.sh \
             SHA256SUMS \
             cloudflare-warp-headless_amd64.deb \
