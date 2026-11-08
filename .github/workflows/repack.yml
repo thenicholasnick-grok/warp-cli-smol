@@ -32,13 +32,32 @@ jobs:
           done
           exit "$failed"
 
-      - name: Upload headless .deb artifacts
+      - name: Build Arch package from the trixie deb
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          trixie_ver=(cloudflare-warp-headless_trixie_*_amd64.deb)
+          if ((${#trixie_ver[@]} != 1)); then
+            echo "expected exactly one trixie versioned .deb, found: ${trixie_ver[*]:-none}" >&2
+            exit 1
+          fi
+          sudo docker run --rm \
+            -v "$PWD":/work \
+            -w /work \
+            --cap-add=SETFCAP \
+            archlinux:latest \
+            bash -lc "pacman -Sy --noconfirm --needed base-devel libarchive && bash ./arch-wrap.sh $(printf '%q' "${trixie_ver[0]}") /work"
+
+      - name: Upload headless package artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cloudflare-warp-headless
           path: |
             cloudflare-warp-headless_bookworm_*_amd64.deb
             cloudflare-warp-headless_trixie_*_amd64.deb
+            cloudflare-warp-headless-*-x86_64.pkg.tar.zst
+            PKGBUILD
+            cloudflare-warp-headless.install
           retention-days: 14
           if-no-files-found: error
 
@@ -61,6 +80,15 @@ jobs:
           cp -f "${bookworm_ver[0]}" cloudflare-warp-headless_bookworm_amd64.deb
           cp -f "${trixie_ver[0]}" cloudflare-warp-headless_trixie_amd64.deb
           cp -f "${trixie_ver[0]}" cloudflare-warp-headless_amd64.deb
+          arch_pkg=(cloudflare-warp-headless-*-x86_64.pkg.tar.zst)
+          if ((${#arch_pkg[@]} != 1)); then
+            echo "expected exactly one Arch package, found: ${arch_pkg[*]:-none}" >&2
+            exit 1
+          fi
+          [[ -s PKGBUILD && -s cloudflare-warp-headless.install ]] || {
+            echo "Arch PKGBUILD or install hook is missing" >&2
+            exit 1
+          }
 
           sha256sum \
             cloudflare-warp-headless_amd64.deb \
@@ -68,6 +96,9 @@ jobs:
             cloudflare-warp-headless_trixie_amd64.deb \
             "${bookworm_ver[0]}" \
             "${trixie_ver[0]}" \
+            "${arch_pkg[0]}" \
+            PKGBUILD \
+            cloudflare-warp-headless.install \
             > SHA256SUMS
           echo "Published checksums:"
           cat SHA256SUMS
@@ -85,6 +116,9 @@ jobs:
           require_sum cloudflare-warp-headless_trixie_amd64.deb
           require_sum "$(basename "${bookworm_ver[0]}")"
           require_sum "$(basename "${trixie_ver[0]}")"
+          require_sum "$(basename "${arch_pkg[0]}")"
+          require_sum PKGBUILD
+          require_sum cloudflare-warp-headless.install
           cmp -s cloudflare-warp-headless_amd64.deb cloudflare-warp-headless_trixie_amd64.deb \
             || { echo "legacy amd64 deb is not the trixie build" >&2; exit 1; }
 
@@ -112,6 +146,8 @@ jobs:
           https://github.com/${{ github.repository }}/releases/latest/download/SHA256SUMS
 
           This run built $(basename "${bookworm_ver[0]}") and $(basename "${trixie_ver[0]}").
+          Arch package from that trixie deb: $(basename "${arch_pkg[0]}")
+          https://raw.githubusercontent.com/${{ github.repository }}/install-dist/$(basename "${arch_pkg[0]}")
 
           Do not apt-get install cloudflare-warp afterwards.
           EOF
@@ -124,6 +160,9 @@ jobs:
             cloudflare-warp-headless_trixie_amd64.deb \
             "${bookworm_ver[0]}" \
             "${trixie_ver[0]}" \
+            "${arch_pkg[0]}" \
+            PKGBUILD \
+            cloudflare-warp-headless.install \
             SHA256SUMS
 
       - name: Publish dual-stack install-dist branch
@@ -136,4 +175,7 @@ jobs:
             cloudflare-warp-headless_amd64.deb \
             cloudflare-warp-headless_bookworm_amd64.deb \
             cloudflare-warp-headless_trixie_amd64.deb \
+            "${arch_pkg[0]}" \
+            PKGBUILD \
+            cloudflare-warp-headless.install \
             "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"

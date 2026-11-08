@@ -19,6 +19,8 @@ Install assets are served from `raw.githubusercontent.com` (dual-stack). GitHub 
 
 Unofficial. Debian 12 (bookworm) and Debian 13 (trixie), amd64 only â€” not an official Cloudflare package. `install.sh` reads `/etc/os-release` and installs the matching build (`WARP_SMOL_SUITE=bookworm` or `WARP_SMOL_SUITE=trixie` overrides detection).
 
+Arch and Omarchy, x86_64: `sudo pacman -U cloudflare-warp-headless-<version>-1-x86_64.pkg.tar.zst` from `install-dist` (listed in `SHA256SUMS`). It is the trixie headless binaries. It does not start `warp-svc`.
+
 Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 
 Cloudflare Team (ncano), 2026-05-23:
@@ -107,14 +109,16 @@ Must be this Apple-style XML plist `<dict>` (not key=value). Placeholders only â
   1. New control has no `webkit` and no `appindicator`.
   2. `readelf -d` on `bin/warp-cli` `NEEDED` is only `libc`, `libm`, `libgcc_s`.
   3. `readelf -d` on `bin/warp-svc` does not show webkit or gtk.
-- Uploads both versioned `.deb`s with `actions/upload-artifact` (`retention-days: 14`).
+- Wraps that trixie `.deb` with `./arch-wrap.sh` inside Arch Linux (`makepkg`). It does not fetch Cloudflare again.
+- Uploads both versioned `.deb`s and the Arch package with `actions/upload-artifact` (`retention-days: 14`).
 - Recreates the rolling GitHub Release tagged `latest` and uploads:
   - `cloudflare-warp-headless_bookworm_amd64.deb`
   - `cloudflare-warp-headless_trixie_amd64.deb`
   - `cloudflare-warp-headless_amd64.deb` (same bits as the trixie build; existing links)
   - `cloudflare-warp-headless_<suite>_<upstream-version>_amd64.deb` (versioned names)
-  - `SHA256SUMS` (one file covering every uploaded `.deb`; `install.sh` requires the suite-named line before `apt-get install`)
-- Force-pushes an orphan `install-dist` branch with the three stable `.deb`s and the same `SHA256SUMS` so IPv6-only guests can fetch via `raw.githubusercontent.com` without hitting `github.com:443`.
+  - `cloudflare-warp-headless_<version>-1-x86_64.pkg.tar.zst`, `PKGBUILD`, and `cloudflare-warp-headless.install`
+  - `SHA256SUMS` (one file covering every uploaded package; `install.sh` requires the suite-named line before `apt-get install`)
+- Force-pushes an orphan `install-dist` branch with the three stable `.deb`s, the Arch package, and the same `SHA256SUMS` so IPv6-only guests can fetch via `raw.githubusercontent.com` without hitting `github.com:443`.
 
 Proofs must pass before either publish step runs.
 
