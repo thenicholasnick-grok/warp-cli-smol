@@ -17,9 +17,7 @@ Install assets are served from `raw.githubusercontent.com` (dual-stack). GitHub 
 
 **Updates are automatic:** each CI run live-fetches Cloudflare's current Debian bookworm and trixie `Packages` indexes (no version pin in this repo) on `workflow_dispatch` and every Monday 06:00 UTC, then publishes a rolling `latest` GitHub Release **and** force-pushes the stable `.deb`s + one `SHA256SUMS` to the orphan `install-dist` branch (single commit, replaced each run). Repo edits are only needed if Cloudflare changes package shape, Depends, paths, or suite.
 
-Unofficial. Debian 12 (bookworm) and Debian 13 (trixie), amd64 only — not an official Cloudflare package. `install.sh` reads `/etc/os-release` and installs the matching build (`WARP_SMOL_SUITE=bookworm` or `WARP_SMOL_SUITE=trixie` overrides detection).
-
-Arch and Omarchy, x86_64: `sudo pacman -U cloudflare-warp-headless-<version>-1-x86_64.pkg.tar.zst` from `install-dist` (listed in `SHA256SUMS`). It is the trixie headless binaries. It does not start `warp-svc`.
+Unofficial. The same command installs Debian 12 (bookworm), Debian 13 (trixie), and Arch/Omarchy, x86_64 only. It reads `/etc/os-release`, checks `SHA256SUMS`, and installs the matching package. It does not start `warp-svc`. `WARP_SMOL_SUITE=bookworm` or `WARP_SMOL_SUITE=trixie` overrides Debian detection.
 
 Official Debian `cloudflare-warp` hard-depends on AppIndicator + WebKit, which drags a desktop onto a server. See [Debian WARP package requires full desktop environment on a server](https://community.cloudflare.com/t/debian-warp-package-requires-full-desktop-environment-on-a-server/928991).
 

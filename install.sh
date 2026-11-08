@@ -2,9 +2,10 @@
 # Install cloudflare-warp-headless on a guest VM from install-dist
 # (raw.githubusercontent.com — dual-stack). GitHub Release downloads stay
 # IPv4-only via github.com, which has no AAAA.
-# Debian 12 (bookworm) and Debian 13 (trixie), amd64 only. The suite comes
-# from /etc/os-release (VERSION_CODENAME / VERSION_ID). Override with
+# Debian 12 (bookworm), Debian 13 (trixie), and Arch/Omarchy, x86_64 only.
+# Debian suite comes from /etc/os-release. Override with
 # WARP_SMOL_SUITE=bookworm or WARP_SMOL_SUITE=trixie.
+# Arch is ID=arch. Omarchy 4 is ID=omarchy and ID_LIKE=arch.
 # Primary use: curl -fsSL .../install.sh | sudo bash
 # Weekly auto-update is on by default (Tuesday 20:17 UTC).
 # Opt out: --no-auto-update or WARP_SMOL_AUTO_UPDATE=0.
@@ -90,7 +91,11 @@ warp_svc_unit_present() {
 advise_caps() {
   [[ -e "$WARP_SVC_BIN" ]] || return 0
   if ! has_cmd getcap && ! has_cmd setcap; then
-    warn "setcap is missing. apt-get install -y libcap2-bin, then dpkg-reconfigure cloudflare-warp-headless"
+    if has_cmd apt-get; then
+      warn "setcap is missing. apt-get install -y libcap2-bin, then dpkg-reconfigure cloudflare-warp-headless"
+    else
+      warn "setcap is missing. Install libcap, then reinstall cloudflare-warp-headless."
+    fi
     return 0
   fi
   has_cmd getcap || return 0
@@ -237,6 +242,92 @@ suite_deb_name() {
       die "internal error: bad suite '${1}'"
       ;;
   esac
+}
+
+host_arch() {
+  if has_cmd dpkg; then
+    dpkg --print-architecture
+    return
+  fi
+  uname -m
+}
+
+id_like_has_arch() {
+  local rest="$1" tok
+  while [[ -n "$rest" ]]; do
+    tok="${rest%% *}"
+    rest="${rest#"$tok"}"
+    rest="${rest# }"
+    [[ "$tok" == "arch" ]] && return 0
+  done
+  return 1
+}
+
+# select_os_family <arch> <os-release-path>
+# Prints arch or debian. x86_64/amd64 only.
+select_os_family() {
+  local arch="$1"
+  local os_release="$2"
+  local id id_like
+
+  case "$arch" in
+    amd64|x86_64) ;;
+    *)
+      die "unsupported architecture: ${arch} (x86_64 only)"
+      ;;
+  esac
+
+  [[ -f "$os_release" ]] || die "cannot read ${os_release} to detect the operating system"
+  id="$(read_os_release_field "$os_release" ID)"
+  id_like="$(read_os_release_field "$os_release" ID_LIKE)"
+
+  if [[ "$id" == "arch" ]]; then
+    printf 'arch'
+    return 0
+  fi
+  # Omarchy 4: ID=omarchy and ID_LIKE=arch. Older Omarchy still uses ID=arch.
+  if [[ "$id" == "omarchy" ]]; then
+    if id_like_has_arch "$id_like"; then
+      printf 'arch'
+      return 0
+    fi
+    die "unsupported Omarchy identity: ID_LIKE=${id_like:-empty} (expected arch)"
+  fi
+  if [[ "$id" == "debian" ]]; then
+    printf 'debian'
+    return 0
+  fi
+  die "unsupported operating system: ${id:-unknown} (Debian 12, Debian 13, Arch, and Omarchy on x86_64 only)"
+}
+
+# Print the single Arch package filename listed in a SHA256SUMS file.
+# The sums file is data. It is never evaluated as shell.
+arch_pkg_name_from_sums() {
+  local sums="$1"
+  local name
+  name="$(awk '
+    function is_arch_pkg(name,    prefix, suffix, mid, n, i, c) {
+      prefix = "cloudflare-warp-headless-"
+      suffix = "-1-x86_64.pkg.tar.zst"
+      n = length(name)
+      if (index(name, prefix) != 1) return 0
+      if (n <= length(prefix) + length(suffix)) return 0
+      if (substr(name, n - length(suffix) + 1) != suffix) return 0
+      mid = substr(name, length(prefix) + 1, n - length(prefix) - length(suffix))
+      if (mid == "") return 0
+      for (i = 1; i <= length(mid); i++) {
+        c = substr(mid, i, 1)
+        if (c !~ /[0-9A-Za-z._+]/) return 0
+      }
+      return 1
+    }
+    length($1) == 64 && $1 !~ /[^0-9a-fA-F]/ && is_arch_pkg($NF) {
+      print $NF
+      count++
+    }
+    END { if (count != 1) exit 1 }
+  ' "$sums")" || die "SHA256SUMS does not list exactly one Arch package"
+  printf '%s' "$name"
 }
 
 # select_suite <arch> <os-release-path>
@@ -405,43 +496,59 @@ require_root() {
   die "this installer must run as root. Re-run with: curl -fsSL https://raw.githubusercontent.com/thenicholasnick-grok/warp-cli-smol/main/install.sh | sudo bash"
 }
 
-install_headless_warp() {
-  require_root "$@"
-  parse_auto_update "$@"
-  if [[ "$AUTO_UPDATE" -eq 0 ]]; then
-    remove_auto_update_jobs
-    log "Auto-update is off. Removed any weekly refresh job."
+arch_conflict_installed() {
+  local name
+  for name in cloudflare-warp cloudflare-warp-bin cloudflare-warp-nox-bin cloudflare-warp-minimal-bin; do
+    if pacman -Q "$name" >/dev/null 2>&1; then
+      printf '%s' "$name"
+      return 0
+    fi
+  done
+  return 1
+}
+
+install_verified_arch() {
+  local sums="$1"
+  local tmp="$2"
+  local name url dest conflict
+
+  has_cmd pacman || die "pacman is required"
+  if conflict="$(arch_conflict_installed)"; then
+    die "official ${conflict} is installed. Remove it first. Do not install cloudflare-warp; that package fights this headless build."
   fi
 
-  command -v curl >/dev/null 2>&1 || die "curl is required"
-  command -v dpkg >/dev/null 2>&1 || die "dpkg is required"
-  command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required"
+  name="$(arch_pkg_name_from_sums "$sums")"
+  url="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${name}"
+  dest="${tmp}/${name}"
+  log "Selected Arch package ${name}"
+  fetch_release_asset "$url" "$dest" "downloaded package is empty"
+  verify_release_deb "$dest" "$sums"
 
-  local arch suite deb_name deb_url
-  arch="$(dpkg --print-architecture)"
+  pacman -Sy --noconfirm </dev/null
+  pacman -U --noconfirm "$dest" </dev/null
+  pacman -Q cloudflare-warp-headless >/dev/null 2>&1 \
+    || die "cloudflare-warp-headless did not finish installing"
+}
+
+install_verified_debian() {
+  local arch="$1"
+  local sums="$2"
+  local tmp="$3"
+  local suite deb_name deb_url deb
+
+  has_cmd dpkg || die "dpkg is required"
   suite="$(select_suite "$arch" /etc/os-release)"
   deb_name="$(suite_deb_name "$suite")"
   deb_url="https://raw.githubusercontent.com/${REPO}/${DIST_BRANCH}/${deb_name}"
+  deb="${tmp}/${deb_name}"
   log "Selected ${suite} package ${deb_name}"
 
   if official_warp_installed; then
     die "official cloudflare-warp is installed. Remove it first. Do not apt-get install cloudflare-warp; that package fights this headless build."
   fi
-
   warn "Do not apt-get install cloudflare-warp after this. That pulls the official GUI client and replaces /bin/warp-cli and /bin/warp-svc."
 
-  local tmp deb sums
-  tmp="$(mktemp -d)"
-  # Expand $tmp now. EXIT can run after this function's locals unwind, and
-  # under set -u a late "$tmp" becomes `tmp: unbound variable`.
-  # shellcheck disable=SC2064
-  trap "rm -rf -- $(printf '%q' "$tmp")" EXIT
-  deb="${tmp}/${deb_name}"
-  sums="${tmp}/${STABLE_SUMS_NAME}"
-
   fetch_release_asset "$deb_url" "$deb" "downloaded package is empty"
-  fetch_release_asset "$STABLE_SUMS_URL" "$sums" "downloaded checksum file is empty"
-
   verify_release_deb "$deb" "$sums"
 
   export DEBIAN_FRONTEND=noninteractive
@@ -457,12 +564,45 @@ install_headless_warp() {
 
   pkg_ok_installed cloudflare-warp-headless \
     || die "cloudflare-warp-headless did not finish installing"
+}
+
+install_headless_warp() {
+  require_root "$@"
+  parse_auto_update "$@"
+  if [[ "$AUTO_UPDATE" -eq 0 ]]; then
+    remove_auto_update_jobs
+    log "Auto-update is off. Removed any weekly refresh job."
+  fi
+
+  command -v curl >/dev/null 2>&1 || die "curl is required"
+  command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required"
+
+  local arch family tmp sums
+  arch="$(host_arch)"
+  family="$(select_os_family "$arch" /etc/os-release)"
+  log "Selected operating system family ${family}"
+
+  tmp="$(mktemp -d)"
+  # Expand $tmp now. EXIT can run after this function's locals unwind, and
+  # under set -u a late "$tmp" becomes `tmp: unbound variable`.
+  # shellcheck disable=SC2064
+  trap "rm -rf -- $(printf '%q' "$tmp")" EXIT
+  sums="${tmp}/${STABLE_SUMS_NAME}"
+  fetch_release_asset "$STABLE_SUMS_URL" "$sums" "downloaded checksum file is empty"
+
+  if [[ "$family" == "arch" ]]; then
+    install_verified_arch "$sums" "$tmp"
+  else
+    install_verified_debian "$arch" "$sums" "$tmp"
+  fi
 
   command -v warp-cli >/dev/null 2>&1 || die "warp-cli is not on PATH after install"
 
   log "Installed cloudflare-warp-headless. warp-cli is on PATH."
   advise_warp_svc
-  log "Do not apt-get install cloudflare-warp afterwards."
+  if [[ "$family" == "debian" ]]; then
+    log "Do not apt-get install cloudflare-warp afterwards."
+  fi
   note_mdm
   if [[ "$AUTO_UPDATE" -eq 1 ]]; then
     install_auto_update_job
